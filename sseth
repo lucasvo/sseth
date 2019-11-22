@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -xe
+ZERO_ADDR="0x0000000000000000000000000000000000000000"
+ZERO=0x$(seth --to-uint256 0)
+SAFE_TX_TYPEHASH=0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8
+TO=0x8056fA61B39B07306A2442c66C8E611E7F0880A6
+VALUE=$ZERO
+OPERATION=0x$(seth --to-uint256 0)
+NONCE=0x$(seth call $SAFE 'nonce()(uint)')
+DATA=$(seth calldata 'inc()')
+
+GET_TX_HASH_FUNC_SIG="getTransactionHash(address,uint,bytes memory, uint8 ,uint,uint,uint,address,address,uint)(bytes32)"
+
+TX_HASH=$(seth call $SAFE "$GET_TX_HASH_FUNC_SIG" $TO $VALUE $DATA $OPERATION $ZERO $ZERO $ZERO $ZERO_ADDR $ZERO_ADDR $NONCE)
+
+SAFE_TX=$(seth send --async $SAFE "approveHash(bytes32)" $TX_HASH)
+
+ENDPOINT="https://safe-transaction.rinkeby.gnosis.io/api/v1/safes/$SAFE/transactions/"
+
+jshon+=(-n {})
+jshon+=(-s "$(echo "ibase=16; $(echo $NONCE | cut -c 3-)"|bc)" -i nonce)
+jshon+=(-s "$TO" -i to)
+jshon+=(-s "$DATA" -i data)
+jshon+=(-s "$(echo "ibase=16; $(echo $VALUE | cut -c 3-)"|bc)" -i value)
+jshon+=(-s "$SAFE_TX" -i transactionHash)
+jshon+=(-s "$TX_HASH" -i contractTransactionHash)
+jshon+=(-s "$ETH_FROM" -i sender)
+jshon+=(-s "confirmation" -i confirmationType)
+jshon+=(-n 0 -i safeTxGas)
+jshon+=(-n 0 -i gasPrice)
+jshon+=(-n 0 -i baseGas)
+jshon+=(-n 0 -i operation)
+
+curl -v -X POST --header "Content-Type: application/json" --data "$(jshon ${jshon[@]})" $ENDPOINT
